@@ -1,6 +1,8 @@
 {
     "name": "powerhamster/mongodb-odm-history",
-    "replace": "doctrine/mongodb-odm",
+    "replace": {
+        "doctrine/mongodb-odm": "self.version"
+    },
     "type": "library",
     "description": "Doctrine MongoDB Object Document Mapper",
     "keywords": ["odm", "database", "persistence", "mongodb"],
