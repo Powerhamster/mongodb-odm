@@ -104,7 +104,7 @@ class AnnotationDriver extends AbstractAnnotationDriver
 
         }
 
-        if ( ! $documentAnnots) {
+        if (!$documentAnnots) {
             throw MappingException::classIsNotAValidDocument($className);
         }
 

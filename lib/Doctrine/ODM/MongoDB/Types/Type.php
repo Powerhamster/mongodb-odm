@@ -53,6 +53,12 @@ abstract class Type
     const OBJECTID = 'object_id';
     const RAW = 'raw';
 
+    const HISTORY_BOOLEAN = 'historyboolean';
+    const HISTORY_DATE = 'historydate';
+    const HISTORY_FLOAT = 'historyfloat';
+    const HISTORY_INT = 'historyint';
+    const HISTORY_STRING = 'historystring';
+
     /** Map of already instantiated type objects. One instance per type (flyweight). */
     private static $typeObjects = array();
 
@@ -80,6 +86,12 @@ abstract class Type
         self::INCREMENT => 'Doctrine\ODM\MongoDB\Types\IncrementType',
         self::OBJECTID => 'Doctrine\ODM\MongoDB\Types\ObjectIdType',
         self::RAW => 'Doctrine\ODM\MongoDB\Types\RawType',
+
+        self::HISTORY_BOOLEAN => 'Doctrine\ODM\MongoDB\Types\History\HistoryBooleanType',
+        self::HISTORY_DATE => 'Doctrine\ODM\MongoDB\Types\History\HistoryDateType',
+        self::HISTORY_FLOAT => 'Doctrine\ODM\MongoDB\Types\History\HistoryFloatType',
+        self::HISTORY_INT => 'Doctrine\ODM\MongoDB\Types\History\HistoryIntType',
+        self::HISTORY_STRING => 'Doctrine\ODM\MongoDB\Types\History\HistoryStringType',
     );
 
     /* Prevent instantiation and force use of the factory method. */
@@ -139,10 +151,10 @@ abstract class Type
      */
     public static function getType($type)
     {
-        if ( ! isset(self::$typesMap[$type])) {
+        if (!isset(self::$typesMap[$type])) {
             throw new \InvalidArgumentException(sprintf('Invalid type specified "%s".', $type));
         }
-        if ( ! isset(self::$typeObjects[$type])) {
+        if (!isset(self::$typeObjects[$type])) {
             $className = self::$typesMap[$type];
             self::$typeObjects[$type] = new $className;
         }
@@ -222,7 +234,7 @@ abstract class Type
      */
     public static function overrideType($name, $className)
     {
-        if ( ! isset(self::$typesMap[$name])) {
+        if (!isset(self::$typesMap[$name])) {
             throw MappingException::typeNotFound($name);
         }
 

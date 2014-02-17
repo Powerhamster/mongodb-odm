@@ -602,6 +602,18 @@ class UnitOfWork implements PropertyChangedListener
     }
 
     /**
+     * Gets the changeset for a document.
+     *
+     * @param object $document
+     * @param array $changeSet
+     */
+    public function setDocumentChangeSet($document, $changeSet)
+    {
+        $oid = spl_object_hash($document);
+        $this->documentChangeSets[$oid] = $changeSet;
+    }
+
+    /**
      * Get a documents actual data, flattening all the objects to arrays.
      *
      * @param object $document
@@ -668,12 +680,12 @@ class UnitOfWork implements PropertyChangedListener
      */
     public function computeChangeSet(ClassMetadata $class, $document)
     {
-        if ( ! $class->isInheritanceTypeNone()) {
+        if (!$class->isInheritanceTypeNone()) {
             $class = $this->dm->getClassMetadata(get_class($document));
         }
 
         // Fire PreFlush lifecycle callbacks
-        if ( ! empty($class->lifecycleCallbacks[Events::preFlush])) {
+        if (!empty($class->lifecycleCallbacks[Events::preFlush])) {
             $class->invokeLifecycleCallbacks(Events::preFlush, $document);
         }
 
@@ -823,7 +835,7 @@ class UnitOfWork implements PropertyChangedListener
                     }
 
                     $values = $value;
-                    if (isset($mapping['type']) && $mapping['type'] === 'one') {
+                    if (isset($mapping['type']) && $mapping['type'] === 'one' && !$values instanceof \ArrayObject) {
                         $values = array($values);
                     } elseif ($values instanceof PersistentCollection) {
                         $values = $values->unwrap();
@@ -832,7 +844,7 @@ class UnitOfWork implements PropertyChangedListener
                         $oid2 = spl_object_hash($obj);
                         if (isset($this->documentChangeSets[$oid2])) {
                             $this->documentChangeSets[$oid][$mapping['fieldName']] = array($value, $value);
-                            if ( ! $isNewDocument) {
+                            if (!$isNewDocument) {
                                 $this->documentUpdates[$oid] = $document;
                             }
                             break;
@@ -878,9 +890,9 @@ class UnitOfWork implements PropertyChangedListener
                 }
                 // Only MANAGED documents that are NOT SCHEDULED FOR INSERTION, UPSERT OR DELETION are processed here.
                 $oid = spl_object_hash($document);
-                if ( ! isset($this->documentInsertions[$oid])
-                    && ! isset($this->documentUpserts[$oid])
-                    && ! isset($this->documentDeletions[$oid])
+                if (!isset($this->documentInsertions[$oid])
+                    && !isset($this->documentUpserts[$oid])
+                    && !isset($this->documentDeletions[$oid])
                     && isset($this->documentStates[$oid])
                 ) {
                     $this->computeChangeSet($class, $document);
@@ -905,22 +917,24 @@ class UnitOfWork implements PropertyChangedListener
 
         if ($value instanceof PersistentCollection && $value->isDirty() && $mapping['isOwningSide']) {
             if ($topOrExistingDocument || strncmp($mapping['strategy'], 'set', 3) === 0) {
-                if ( ! in_array($value, $this->collectionUpdates, true)) {
+                if (!in_array($value, $this->collectionUpdates, true)) {
                     $this->collectionUpdates[] = $value;
                 }
             }
             $this->visitedCollections[] = $value;
         }
 
-        if ( ! $mapping['isCascadePersist']) {
+        if (!$mapping['isCascadePersist']) {
             return; // "Persistence by reachability" only if persist cascade specified
         }
 
         if ($mapping['type'] === 'one') {
-            if ($value instanceof Proxy && ! $value->__isInitialized__) {
+            if ($value instanceof Proxy && !$value->__isInitialized__) {
                 return; // Ignore uninitialized proxy objects
             }
-            $value = array($value);
+            if (!$value instanceof \ArrayObject) {
+                $value = array($value);
+            }
         } elseif ($value instanceof PersistentCollection) {
             $value = $value->unwrap();
         }
@@ -935,7 +949,7 @@ class UnitOfWork implements PropertyChangedListener
 
             $count++;
             if ($state == self::STATE_NEW) {
-                if ( ! $mapping['isCascadePersist']) {
+                if (!$mapping['isCascadePersist']) {
                     throw new \InvalidArgumentException("A new document was found through a relationship that was not"
                         . " configured to cascade persist operations: " . self::objToStr($entry) . "."
                         . " Explicitly persist the new document or configure cascading persist operations"
@@ -1177,26 +1191,31 @@ class UnitOfWork implements PropertyChangedListener
 
         foreach ($this->documentUpdates as $oid => $document) {
             if (get_class($document) == $className || $document instanceof Proxy && $document instanceof $className) {
-                if ( ! $class->isEmbeddedDocument) {
+                if (!$class->isEmbeddedDocument) {
                     if ($hasPreUpdateLifecycleCallbacks) {
                         $class->invokeLifecycleCallbacks(Events::preUpdate, $document);
                         $this->recomputeSingleDocumentChangeSet($class, $document);
                     }
 
                     if ($hasPreUpdateListeners && isset($this->documentChangeSets[$oid])) {
-                        $this->evm->dispatchEvent(Events::preUpdate, new Event\PreUpdateEventArgs(
-                            $document, $this->dm, $this->documentChangeSets[$oid])
+                        $this->evm->dispatchEvent(
+                            Events::preUpdate,
+                            new Event\PreUpdateEventArgs(
+                                $document,
+                                $this->dm,
+                                $this->documentChangeSets[$oid]
+                            )
                         );
                     }
                     $this->cascadePreUpdate($class, $document);
                 }
 
-                if ( ! $class->isEmbeddedDocument && isset($this->documentChangeSets[$oid]) && $this->documentChangeSets[$oid]) {
+                if (!$class->isEmbeddedDocument && isset($this->documentChangeSets[$oid]) && $this->documentChangeSets[$oid]) {
                     $persister->update($document, $options);
                 }
                 unset($this->documentUpdates[$oid]);
 
-                if ( ! $class->isEmbeddedDocument) {
+                if (!$class->isEmbeddedDocument) {
                     if ($hasPostUpdateLifecycleCallbacks) {
                         $class->invokeLifecycleCallbacks(Events::postUpdate, $document);
                     }
@@ -2477,23 +2496,19 @@ class UnitOfWork implements PropertyChangedListener
         $class = $this->dm->getClassMetadata(get_class($document));
 
         foreach ($class->associationMappings as $fieldName => $mapping) {
-            if ( ! $mapping['isCascadePersist']) {
+            if (!$mapping['isCascadePersist']) {
                 continue;
             }
-
-            $relatedDocuments = $class->reflFields[$fieldName]->getValue($document);
-
-            if ($relatedDocuments instanceof Collection || is_array($relatedDocuments)) {
-                if ($relatedDocuments instanceof PersistentCollection) {
-                    // Unwrap so that foreach() does not initialize
-                    $relatedDocuments = $relatedDocuments->unwrap();
+            if (!isset($mapping['history'])) {
+                $relatedDocuments = $class->reflFields[$fieldName]->getValue($document);
+                $this->persistRelatedDocuments($relatedDocuments, $visited);
+            } elseif ($mapping['history']) {
+                $historyArray = $class->reflFields[$fieldName]->getValue($document);
+                if (!empty($historyArray)) {
+                    foreach ($historyArray as $relatedDocuments) {
+                        $this->persistRelatedDocuments($relatedDocuments, $visited);
+                    }
                 }
-
-                foreach ($relatedDocuments as $relatedDocument) {
-                    $this->doPersist($relatedDocument, $visited);
-                }
-            } elseif ($relatedDocuments !== null) {
-                $this->doPersist($relatedDocuments, $visited);
             }
         }
     }
@@ -2508,7 +2523,7 @@ class UnitOfWork implements PropertyChangedListener
     {
         $class = $this->dm->getClassMetadata(get_class($document));
         foreach ($class->fieldMappings as $mapping) {
-            if ( ! $mapping['isCascadeRemove']) {
+            if (!$mapping['isCascadeRemove']) {
                 continue;
             }
             if (isset($mapping['embedded'])) {
@@ -2554,7 +2569,7 @@ class UnitOfWork implements PropertyChangedListener
         $class = $this->dm->getClassMetadata($documentName);
 
         if ($lockMode == LockMode::OPTIMISTIC) {
-            if ( ! $class->isVersioned) {
+            if (!$class->isVersioned) {
                 throw LockException::notVersioned($documentName);
             }
 
@@ -3056,5 +3071,25 @@ class UnitOfWork implements PropertyChangedListener
     private static function objToStr($obj)
     {
         return method_exists($obj, '__toString') ? (string)$obj : get_class($obj) . '@' . spl_object_hash($obj);
+    }
+
+    /**
+     * @param array $visited
+     * @param       $relatedDocuments
+     */
+    private function persistRelatedDocuments($relatedDocuments, array &$visited)
+    {
+        if ($relatedDocuments instanceof Collection || is_array($relatedDocuments)) {
+            if ($relatedDocuments instanceof PersistentCollection) {
+                // Unwrap so that foreach() does not initialize
+                $relatedDocuments = $relatedDocuments->unwrap();
+            }
+
+            foreach ($relatedDocuments as $relatedDocument) {
+                $this->doPersist($relatedDocument, $visited);
+            }
+        } elseif ($relatedDocuments !== null) {
+            $this->doPersist($relatedDocuments, $visited);
+        }
     }
 }
