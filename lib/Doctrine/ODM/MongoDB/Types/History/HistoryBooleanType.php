@@ -20,6 +20,7 @@
 namespace Doctrine\ODM\MongoDB\Types\History;
 
 use Doctrine\ODM\MongoDB\Types\BooleanType;
+use Doctrine\ODM\MongoDB\Types\DateType;
 
 /**
  * The history Boolean type.
@@ -28,9 +29,13 @@ use Doctrine\ODM\MongoDB\Types\BooleanType;
  */
 class HistoryBooleanType extends BooleanType
 {
-    public function convertToDatabaseValue($value)
+    public function convertToDatabaseValue($values)
     {
-        return $value !== null ? (boolean) $value : null;
+        foreach ($values as &$value) {
+            $value['validFrom'] = DateType::convertPHPToDatabaseValue($value['validFrom']);
+            $value['value'] = parent::convertToDatabaseValue($value['value']);
+        }
+        return (array) $values;
     }
 
     public function convertToPHPValue($value)
@@ -45,6 +50,6 @@ class HistoryBooleanType extends BooleanType
 
     public function closureToPHP()
     {
-        return '$return = (bool) $value;';
+        return '$value = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate($this->dm, $value); $return = (bool) $value;';
     }
 }

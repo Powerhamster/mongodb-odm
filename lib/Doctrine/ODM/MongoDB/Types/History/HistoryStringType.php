@@ -19,6 +19,7 @@
 
 namespace Doctrine\ODM\MongoDB\Types\History;
 
+use Doctrine\ODM\MongoDB\Types\DateType;
 use Doctrine\ODM\MongoDB\Types\StringType;
 
 /**
@@ -30,18 +31,19 @@ class HistoryStringType extends StringType
 {
     public function convertToDatabaseValue($values)
     {
-        if ($values instanceof \ArrayObject) {
-            $values = (array) $values;
-        }
         foreach ($values as &$value) {
-            $value = parent::convertToDatabaseValue($value);
+            $value['validFrom'] = DateType::convertPHPToDatabaseValue($value['validFrom']);
+            $value['value'] = parent::convertToDatabaseValue($value['value']);
+            if (isset($value['validUntil'])) {
+                $value['validUntil'] = DateType::convertPHPToDatabaseValue($value['validUntil']);
+            }
         }
-        return (object) $values;
+        return (array) $values;
     }
 
     public function convertToPHPValue($value)
     {
-        return $value !== null ? (string) $value : null;
+        return $value !== null ? (string) $value['value'] : null;
     }
 
     public function closureToMongo()
@@ -51,6 +53,6 @@ class HistoryStringType extends StringType
 
     public function closureToPHP()
     {
-        return '$value = current($value); $return = (string) $value;';
+        return '$value = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate($this->dm, $value); $return = (string) $value;';
     }
 }

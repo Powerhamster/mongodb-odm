@@ -21,6 +21,7 @@ namespace Doctrine\ODM\MongoDB\Persisters;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
 use Doctrine\ODM\MongoDB\PersistentCollection;
+use Doctrine\ODM\MongoDB\Types\DateType;
 use Doctrine\ODM\MongoDB\Types\Type;
 use Doctrine\ODM\MongoDB\UnitOfWork;
 
@@ -102,11 +103,14 @@ class PersistenceBuilder
 
                 // @EmbedOne
                 } elseif (isset($mapping['association']) && $mapping['association'] === ClassMetadata::EMBED_ONE) {
-                    if (!$new instanceof \ArrayObject) {
+                    if (!isset($mapping['history']) || !$mapping['history']) {
                         $value = $this->prepareEmbeddedDocumentValue($mapping, $new);
-                    } elseif (isset($mapping['history']) && $mapping['history']) {
-                        foreach ($new as $key => $reference) {
-                            $value[$key] = $this->prepareEmbeddedDocumentValue($mapping, $reference);
+                    } else {
+                        foreach ($new as $reference) {
+                            $value[] = array(
+                                'validFrom' => DateType::convertPHPToDatabaseValue($reference['validFrom']),
+                                'value' => $reference['value'] !== null ? $this->prepareEmbeddedDocumentValue($mapping, $reference['value']) : null
+                            );
                         }
                     }
 
@@ -183,43 +187,39 @@ class PersistenceBuilder
 
             // @EmbedOne
             } elseif (isset($mapping['association']) && $mapping['association'] === ClassMetadata::EMBED_ONE) {
-
-                // If we have a new embedded document then lets set the whole thing
-                if ($new && $this->uow->isScheduledForInsert($new)) {
-                    $updateData['$set'][$mapping['name']] = $this->prepareEmbeddedDocumentValue($mapping, $new);
-
-                // If we don't have a new value then lets unset the embedded document
-                } elseif (!$new) {
-                    $updateData['$unset'][$mapping['name']] = true;
-
-                // Update existing embedded document
-                } else {
-                    if (!$new instanceof \ArrayObject) {
-                        $update = $this->prepareUpdateData($new);
-                        foreach ($update as $cmd => $values) {
-                            foreach ($values as $key => $value) {
-                                $updateData[$cmd][$mapping['name'] . '.' . $key] = $value;
-                            }
-                        }
-                    } elseif (isset($mapping['history']) && $mapping['history']) {
-                        foreach ($new as $key => $embeddedDoc) {
-                            if (!is_null($embeddedDoc)) {
-                                if (!$this->uow->isScheduledForInsert($embeddedDoc)) {
-                                    $update = $this->prepareUpdateData($embeddedDoc);
-                                    foreach ($update as $cmd => $values) {
-                                        foreach ($values as $name => $value) {
-                                            $updateData[$cmd][$mapping['name'] . '.' . $key . '.' . $name] = $value;
-                                        }
+                if (isset($mapping['history']) && $mapping['history']) {
+                    foreach ($new as $key => $embeddedDoc) {
+                        if (!is_null($embeddedDoc['value'])) {
+                            if (!$this->uow->isScheduledForInsert($embeddedDoc['value'])) {
+                                $update = $this->prepareUpdateData($embeddedDoc['value']);
+                                foreach ($update as $cmd => $values) {
+                                    foreach ($values as $name => $value) {
+                                        $updateData[$cmd][$mapping['name'] . '.' . $key . '.value.' . $name] = $value;
                                     }
                                 }
-                            } else {
-                                $updateData['$set'][$mapping['name'] . '.' . $key] = null;
                             }
+                        } else {
+                            $updateData['$set'][$mapping['name'] . '.' . $key.'.value'] = null;
+                        }
+                        $updateData['$set'][$mapping['name'] . '.' . $key.'.validFrom'] = DateType::convertPHPToDatabaseValue($embeddedDoc['validFrom']);
+                    }
+                } else {
+                    // If we have a new embedded document then lets set the whole thing
+                    if ($new && $this->uow->isScheduledForInsert($new)) {
+                        $updateData['$set'][$mapping['name']] = $this->prepareEmbeddedDocumentValue($mapping, $new);
+
+                    // If we don't have a new value then lets unset the embedded document
+                    } elseif (!$new) {
+                        $updateData['$unset'][$mapping['name']] = true;
+                    }
+                    // Update existing embedded document
+                    $update = $this->prepareUpdateData($new);
+                    foreach ($update as $cmd => $values) {
+                        foreach ($values as $key => $value) {
+                            $updateData[$cmd][$mapping['name'] . '.' . $key] = $value;
                         }
                     }
                 }
-
-
             // @EmbedMany
             } elseif (isset($mapping['association']) && $mapping['association'] === ClassMetadata::EMBED_MANY) {
                 if (null !== $new) {
@@ -277,7 +277,7 @@ class PersistenceBuilder
                 }
 
             // @Field, @String, @Date, etc.
-            } elseif ( ! isset($mapping['association'])) {
+            } elseif (!isset($mapping['association'])) {
                 if (isset($new) || $mapping['nullable'] === true) {
                     $updateData['$set'][$mapping['name']] = (is_null($new) ? null : Type::getType($mapping['type'])->convertToDatabaseValue($new));
                 }

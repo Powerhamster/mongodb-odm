@@ -405,6 +405,11 @@ class ClassMetadataInfo implements \Doctrine\Common\Persistence\Mapping\ClassMet
     public $reflClass;
 
     /**
+     * @var \ReflectionProperty[]|array
+     */
+    public $historyProperties = array();
+
+    /**
      * Initializes a new ClassMetadata instance that will hold the object-document mapping
      * metadata of the class with the given name.
      *
@@ -806,7 +811,7 @@ class ClassMetadataInfo implements \Doctrine\Common\Persistence\Mapping\ClassMet
     /**
      * Gets the ReflectionProperties of the mapped class.
      *
-     * @return array An array of ReflectionProperty instances.
+     * @return \ReflectionProperty[]|array An array of ReflectionProperty instances.
      */
     public function getReflectionProperties()
     {
@@ -1726,7 +1731,7 @@ class ClassMetadataInfo implements \Doctrine\Common\Persistence\Mapping\ClassMet
      * Gets the type of a field.
      *
      * @param string $fieldName
-     * @return Types\Type
+     * @return \Doctrine\ODM\MongoDB\Types\Type
      */
     public function getTypeOfField($fieldName)
     {

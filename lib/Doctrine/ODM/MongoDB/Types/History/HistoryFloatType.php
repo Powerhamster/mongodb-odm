@@ -19,6 +19,7 @@
 
 namespace Doctrine\ODM\MongoDB\Types\History;
 
+use Doctrine\ODM\MongoDB\Types\DateType;
 use Doctrine\ODM\MongoDB\Types\FloatType;
 
 /**
@@ -28,9 +29,13 @@ use Doctrine\ODM\MongoDB\Types\FloatType;
  */
 class HistoryFloatType extends FloatType
 {
-    public function convertToDatabaseValue($value)
+    public function convertToDatabaseValue($values)
     {
-        return $value !== null ? (float) $value : null;
+        foreach ($values as &$value) {
+            $value['validFrom'] = DateType::convertPHPToDatabaseValue($value['validFrom']);
+            $value['value'] = parent::convertToDatabaseValue($value['value']);
+        }
+        return (array) $values;
     }
 
     public function convertToPHPValue($value)
@@ -45,6 +50,6 @@ class HistoryFloatType extends FloatType
 
     public function closureToPHP()
     {
-        return '$return = (float) $value;';
+        return '$value = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate($this->dm, $value); $return = (float) $value;';
     }
 }

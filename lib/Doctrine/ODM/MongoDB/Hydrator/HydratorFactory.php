@@ -311,9 +311,19 @@ EOF
                     $mapping['fieldName']
                 );
             } elseif ($mapping['association'] === ClassMetadata::EMBED_ONE) {
+                $historyCode = null;
+                if (isset($mapping['history']) && $mapping['history']) {
+                    $historyCode = sprintf(<<<EOF
+
+        \$data['%1\$s'] = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate(\$this->dm, \$data['%1\$s']);
+EOF
+                    ,
+                        $mapping['name']
+                    );
+                }
                 $code .= sprintf(<<<EOF
 
-        /** @EmbedOne */
+        /** @EmbedOne */%3\$s
         if (isset(\$data['%1\$s'])) {
             \$embeddedDocument = \$data['%1\$s'];
             \$className = \$this->unitOfWork->getClassNameForAssociation(\$this->class->fieldMappings['%2\$s'], \$embeddedDocument);
@@ -333,12 +343,13 @@ EOF
 EOF
                     ,
                     $mapping['name'],
-                    $mapping['fieldName']
+                    $mapping['fieldName'],
+                    $historyCode
                 );
+
             }
         }
 
-        $className = $class->name;
         $namespace = $this->hydratorNamespace;
         $code = sprintf(<<<EOF
 <?php

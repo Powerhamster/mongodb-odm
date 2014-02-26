@@ -30,13 +30,14 @@ class HistoryDateType extends DateType
 {
     public function convertToDatabaseValue($values)
     {
-        if ($values instanceof \ArrayObject) {
-            $values = (array) $values;
-        }
         foreach ($values as &$value) {
-            $value = parent::convertToDatabaseValue($value);
+            $value['validFrom'] = DateType::convertPHPToDatabaseValue($value['validFrom']);
+            $value['value'] = parent::convertToDatabaseValue($value['value']);
+            if (isset($value['validUntil'])) {
+                $value['validUntil'] = DateType::convertPHPToDatabaseValue($value['validUntil']);
+            }
         }
-        return (object) $values;
+        return (array) $values;
     }
 
     public function convertToPHPValue($value)
@@ -65,6 +66,6 @@ class HistoryDateType extends DateType
 
     public function closureToPHP()
     {
-        return '$value = current($value); if ($value instanceof \MongoDate) { $return = new \DateTime(); $return->setTimestamp($value->sec); } elseif (is_numeric($value)) { $return = new \DateTime(); $return->setTimestamp($value); } elseif ($value instanceof \DateTime) { $return = $value; } else { $return = new \DateTime($value); }';
+        return '$value = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate($this->dm, $value); if ($value instanceof \MongoDate) { $return = new \DateTime(); $return->setTimestamp($value->sec); } elseif (is_numeric($value)) { $return = new \DateTime(); $return->setTimestamp($value); } elseif ($value instanceof \DateTime) { $return = $value; } else { $return = new \DateTime($value); }';
     }
 }

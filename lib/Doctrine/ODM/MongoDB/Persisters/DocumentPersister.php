@@ -210,10 +210,13 @@ class DocumentPersister
      * If no inserts are queued, invoking this method is a NOOP.
      *
      * @param array $options Options for batchInsert() and update() driver methods
+     *
+     * @throws \Exception
+     * @throws \MongoException
      */
     public function executeInserts(array $options = array())
     {
-        if ( ! $this->queuedInserts) {
+        if (!$this->queuedInserts) {
             return;
         }
 

@@ -19,6 +19,7 @@
 
 namespace Doctrine\ODM\MongoDB\Types\History;
 
+use Doctrine\ODM\MongoDB\Types\DateType;
 use Doctrine\ODM\MongoDB\Types\IntType;
 
 
@@ -29,9 +30,13 @@ use Doctrine\ODM\MongoDB\Types\IntType;
  */
 class HistoryIntType extends IntType
 {
-    public function convertToDatabaseValue($value)
+    public function convertToDatabaseValue($values)
     {
-        return $value !== null ? (integer) $value : null;
+        foreach ($values as &$value) {
+            $value['validFrom'] = DateType::convertPHPToDatabaseValue($value['validFrom']);
+            $value['value'] = parent::convertToDatabaseValue($value['value']);
+        }
+        return (array) $values;
     }
 
     public function convertToPHPValue($value)
@@ -46,6 +51,6 @@ class HistoryIntType extends IntType
 
     public function closureToPHP()
     {
-        return '$return = (int) $value;';
+        return '$value = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate($this->dm, $value); $return = (int) $value;';
     }
 }
