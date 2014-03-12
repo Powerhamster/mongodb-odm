@@ -314,8 +314,7 @@ EOF
                 $historyCode = null;
                 if (isset($mapping['history']) && $mapping['history']) {
                     $historyCode = sprintf(<<<EOF
-
-        \$data['%1\$s'] = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate(\$this->dm, \$data['%1\$s']);
+\$data['%1\$s'] = \Doctrine\ODM\MongoDB\Types\History\AbstractHistoryType::filterViewDate(\$this->dm, \$data['%1\$s']);
 EOF
                     ,
                         $mapping['name']
@@ -323,21 +322,24 @@ EOF
                 }
                 $code .= sprintf(<<<EOF
 
-        /** @EmbedOne */%3\$s
+        /** @EmbedOne */
         if (isset(\$data['%1\$s'])) {
+            %3\$s
             \$embeddedDocument = \$data['%1\$s'];
-            \$className = \$this->unitOfWork->getClassNameForAssociation(\$this->class->fieldMappings['%2\$s'], \$embeddedDocument);
-            \$embeddedMetadata = \$this->dm->getClassMetadata(\$className);
-            \$return = \$embeddedMetadata->newInstance();
+            if (!is_null(\$embeddedDocument)) {
+                \$className = \$this->unitOfWork->getClassNameForAssociation(\$this->class->fieldMappings['%2\$s'], \$embeddedDocument);
+                \$embeddedMetadata = \$this->dm->getClassMetadata(\$className);
+                \$return = \$embeddedMetadata->newInstance();
 
-            \$embeddedData = \$this->dm->getHydratorFactory()->hydrate(\$return, \$embeddedDocument, \$hints);
-            \$embeddedId = \$embeddedMetadata->identifier && isset(\$embeddedData[\$embeddedMetadata->identifier]) ? \$embeddedData[\$embeddedMetadata->identifier] : null;
+                \$embeddedData = \$this->dm->getHydratorFactory()->hydrate(\$return, \$embeddedDocument, \$hints);
+                \$embeddedId = \$embeddedMetadata->identifier && isset(\$embeddedData[\$embeddedMetadata->identifier]) ? \$embeddedData[\$embeddedMetadata->identifier] : null;
 
-            \$this->unitOfWork->registerManaged(\$return, \$embeddedId, \$embeddedData);
-            \$this->unitOfWork->setParentAssociation(\$return, \$this->class->fieldMappings['%2\$s'], \$document, '%1\$s');
+                \$this->unitOfWork->registerManaged(\$return, \$embeddedId, \$embeddedData);
+                \$this->unitOfWork->setParentAssociation(\$return, \$this->class->fieldMappings['%2\$s'], \$document, '%1\$s');
 
-            \$this->class->reflFields['%2\$s']->setValue(\$document, \$return);
-            \$hydratedData['%2\$s'] = \$return;
+                \$this->class->reflFields['%2\$s']->setValue(\$document, \$return);
+                \$hydratedData['%2\$s'] = \$return;
+            }
         }
 
 EOF
