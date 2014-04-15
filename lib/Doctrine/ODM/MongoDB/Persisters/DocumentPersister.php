@@ -23,6 +23,7 @@ use Doctrine\Common\EventManager;
 use Doctrine\MongoDB\Cursor as BaseCursor;
 use Doctrine\ODM\MongoDB\Cursor;
 use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\Events;
 use Doctrine\ODM\MongoDB\Hydrator\HydratorFactory;
 use Doctrine\ODM\MongoDB\LockException;
 use Doctrine\ODM\MongoDB\LockMode;
@@ -224,6 +225,12 @@ class DocumentPersister
         foreach ($this->queuedInserts as $oid => $document) {
             $data = $this->pb->prepareInsertData($document);
 
+            if ($this->evm->hasListeners(Events::modifyData)) {
+                $this->evm->dispatchEvent(
+                    Events::modifyData,
+                    new \Doctrine\ODM\MongoDB\Event\ModifyDataEventArgs($document, $data, $this->dm)
+                );
+            }
             // Set the initial version for each insert
             if ($this->class->isVersioned) {
                 $versionMapping = $this->class->fieldMappings[$this->class->versionField];
@@ -270,7 +277,12 @@ class DocumentPersister
 
         foreach ($this->queuedUpserts as $oid => $document) {
             $data = $this->pb->prepareUpsertData($document);
-
+            if ($this->evm->hasListeners(Events::modifyData)) {
+                $this->evm->dispatchEvent(
+                    Events::modifyData,
+                    new \Doctrine\ODM\MongoDB\Event\ModifyDataEventArgs($document, $data, $this->dm)
+                );
+            }
             try {
                 $this->executeUpsert($data, $options);
                 unset($this->queuedUpserts[$oid]);
@@ -339,9 +351,13 @@ class DocumentPersister
     {
         $id = $this->uow->getDocumentIdentifier($document);
         $update = $this->pb->prepareUpdateData($document);
-
         if (!empty($update)) {
-
+            if ($this->evm->hasListeners(Events::modifyData)) {
+                $this->evm->dispatchEvent(
+                    Events::modifyData,
+                    new \Doctrine\ODM\MongoDB\Event\ModifyDataEventArgs($document, $update['$set'], $this->dm)
+                );
+            }
             $id = $this->class->getDatabaseIdentifierValue($id);
             $query = array('_id' => $id);
 
